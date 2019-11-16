@@ -4,12 +4,16 @@
 import os, pygame, random
 
 
+# Define the pygame display size
 SCREEN_WIDTH = 800
 SCREEN_HEIGHT = 600
 
+# Define the card size -- these dimensions allow 12 cards (with spacing)
+# across the screen, and 7 cards (with spacing) down the screen.
 CARD_WIDTH = 64
 CARD_HEIGHT = 80
 
+# Define the needed colors as RGB tuples
 BLACK = (0, 0, 0)
 WHITE = (255, 255, 255)
 GREY = (128, 128, 128)
@@ -55,10 +59,13 @@ def stars(n):
     
 def card_image(n):
     """Return the image for card number n."""
+    # The number of stars on the card determines the base image used,
+    # as well as the foreground / background colors used later.
     s = stars(n)
     filename = os.path.join("images", "card_" + str(s) + ".png")
     image = pygame.image.load(filename)
-    
+
+    # Set foreground and background colors based on card type (# of stars)
     if s == 7:
         fg, bg = RED, PURPLE
     elif s == 5:
@@ -70,10 +77,12 @@ def card_image(n):
     else:
         fg, bg = BLACK, WHITE
         
+    # Render the card number using the selected colors
     font_name = pygame.font.get_default_font()
     font = pygame.font.Font(font_name, 24)
     text = font.render(str(n), True, fg, bg)
 
+    # Add the card number to the base card image
     x = (CARD_WIDTH - text.get_width()) / 2
     y = 31
     image.blit(text, (x, y))

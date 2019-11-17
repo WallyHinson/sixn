@@ -23,6 +23,9 @@ YELLOW = (255, 242, 0)
 RED = (255, 0, 0)
 PURPLE = (64, 32, 64)
 
+# Define the maximum framerate
+FRAMERATE = 30
+
 
 # The deck will be a list of (number, stars, image) tuples
 cards = []
@@ -93,6 +96,7 @@ def card_image(n):
 def game_loop():
     """The main game loop -- almost everything happens here."""
     screen = pygame.display.set_mode((SCREEN_WIDTH, SCREEN_HEIGHT))
+    clock = pygame.time.Clock()
     card = cards.pop()
     
     running = True
@@ -109,6 +113,8 @@ def game_loop():
                     card = cards.pop()
                 else:
                     running = False
+
+        clock.tick(FRAMERATE)
 
     pygame.quit()
     exit()

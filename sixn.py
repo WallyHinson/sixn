@@ -26,9 +26,20 @@ PURPLE = (64, 32, 64)
 # Define the maximum framerate
 FRAMERATE = 30
 
+# Define constants for the different elements of a card
+CARD_NUMBER = 0
+CARD_STARS = 1
+CARD_IMAGE = 2
+CARD_X = 3
+CARD_Y = 4
+CARD_MOVING = 5
+CARD_DX = 6
+CARD_DY = 7
 
-# The deck will be a list of (number, stars, image) tuples
-cards = []
+
+# The deck will be a list of [number, stars, image, x, y, moving, dx, dy]
+# lists
+deck = []
 
 
 def main():
@@ -38,12 +49,19 @@ def main():
 
 def init():
     """Initial setup before the game starts."""
-    global cards
+    global deck
 
     pygame.init()
 
+    # For now, create each card near the middle of the screen, with random
+    # motion
     for i in range(1, 105):
-        cards.append((i, stars(i), card_image(i)))  
+        deck.append([i, stars(i), card_image(i),
+                     random.randrange(SCREEN_WIDTH // 3, SCREEN_WIDTH // 3 * 2),
+                     random.randrange(SCREEN_HEIGHT // 3, SCREEN_HEIGHT //3 * 2),
+                     True,
+                     random.randrange(-5, 6),
+                     random.randrange(-5, 6)])
 
 
 def stars(n):
@@ -95,25 +113,73 @@ def card_image(n):
 
 def game_loop():
     """The main game loop -- almost everything happens here."""
+    # Create and set up the display surface
     screen = pygame.display.set_mode((SCREEN_WIDTH, SCREEN_HEIGHT))
+    pygame.display.set_caption("sixn")
+
+    # Create a clock to regulate the frame rate
     clock = pygame.time.Clock()
-    card = cards.pop()
+
+    # Create a card-sized image of the background color, to allow erasing
+    # just a single card
+    card_erase = pygame.Surface((CARD_WIDTH, CARD_HEIGHT))
+    card_erase.fill(GREEN)
+
+    screen.fill(GREEN)
+    pygame.display.update()
+    cards = []
     
     running = True
     while running:
-        screen.fill(GREEN)
-        screen.blit(card[2], (64, 64))
-        pygame.display.update()
+        # Clear list of dirty rectangles
+        dirty = []
+        for card in cards:
+            if card[CARD_MOVING] == True:
+                # Restore the background at the current card position
+                dirty.append(screen.blit(card_erase,
+                                         (card[CARD_X], card[CARD_Y])))
+                # Update the card's position
+                card[CARD_X] += card[CARD_DX]
+                card[CARD_Y] += card[CARD_DY]
+
+                # Stop its motion if it's hit any screen edge
+                if card[CARD_X] < 0:
+                    card[CARD_X] = 0
+                    card[CARD_MOVING] = False
+                elif card[CARD_X] > SCREEN_WIDTH - CARD_WIDTH:
+                    card[CARD_X] = SCREEN_WIDTH - CARD_WIDTH
+                    card[CARD_MOVING] = False
+                if card[CARD_Y] < 0:
+                    card[CARD_Y] = 0
+                    card[CARD_MOVING] = False
+                elif card[CARD_Y] > SCREEN_HEIGHT - CARD_HEIGHT:
+                    card[CARD_Y] = SCREEN_HEIGHT - CARD_HEIGHT
+                    card[CARD_MOVING] = False
+
+                # Clear the moving flag if dx and dy are both zero
+                if card[CARD_DX] == 0 and card[CARD_DY] == 0:
+                    card[CARD_MOVING] = False
+
+            # Blit card to screen and append rectangle to list of dirty
+            # areas, so that update() will make the needed update below
+            dirty.append(screen.blit(card[CARD_IMAGE],
+                                 (card[CARD_X], card[CARD_Y])))
+
+        # Update only the modified areas of the screen    
+        pygame.display.update(dirty)
         
+        # Get and process events -- exit on QUIT; spawn a new card on a
+        # MOUSEBUTTONUP or exit if the deck is empty
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
                 running = False
             if event.type == pygame.MOUSEBUTTONUP:
-                if len(cards):
-                    card = cards.pop()
+                if len(deck):
+                    cards.append(deck.pop())
                 else:
                     running = False
 
+        # Run no faster than FRAMERATE frames per second
         clock.tick(FRAMERATE)
 
     pygame.quit()

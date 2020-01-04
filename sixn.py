@@ -1,7 +1,10 @@
 """An implementation of the 6 nimmt! card game using pygame."""
 
 
-import os, pygame, random
+import os
+import random
+
+import pygame
 
 
 # Define the pygame display size
@@ -42,13 +45,15 @@ class Card:
         _frames: number of frames to take moving a card to its destination
         _x_dest: destination x position of a moving card
         _y_dest: destination y position of a moving card
-        _remove: should card be removed at end of its animation?
+        _remove_on_arrival: should card be removed at end of its animation?
 
     Public methods:
         __init__(n): create card number n
         place(x, y): place the card at position x, y
-        move_to(x, y, frames): move card to x, y in the given number of frames
-        update(): process animation (if any) and redraw card
+        move_to(x, y, frames, remove_on_arrival=False): move card to x, y in
+            the given number of frames, optionally removing it from the
+            screen once it arrives
+        update(): process animation (if any) and redraw the card
     """
 
     def __init__(self, n):
@@ -70,34 +75,30 @@ class Card:
 
         Note: this by itself does not cause the card to be displayed on the
         screen; it must also be added to the list of visible objects, and
-        will be displayed once the game loop processes that and calls
-        update() on it.
+        will be displayed once the game loop processes that list and calls
+        update() on the card.
         """
         self._x = x
         self._y = y
         self.visible = True
 
-    def move_to(self, x, y, frames):
-        """Set the animation parameters for the card so that it will move
+    def move_to(self, x, y, frames, remove_on_arrival=False):
+        """Move the card to a new position, optionally removing it afterwards.
+
+        Sets the animation parameters for the card so that it will move
         from its current position to the given x, y position in the given
-        number of frames.
+        number of frames.  If remove_on_arrival is True, the card will be
+        dropped from the list of visible cards once it reaches its
+        destination (for example, each card in a row being picked up by a
+        player could move to the player's image and disappear.)
         """
         self._frames = frames
         self._dx = (x - self._x) / frames
         self._dy = (y - self._y) / frames
-
-    def remove_on_arrival(self):
-        """Set the remove on arrival flag, causing the visible attribute to
-        be set to False when the card reaches its destination.  This will
-        cause the game loop to drop the card from the list of currently
-        visible cards after that update.
-        """
-        self._remove_on_arrival = True    
+        self._remove_on_arrival = remove_on_arrival
 
     def update(self):
         """Process any animation updates and draw the card on the screen."""
-        global screen
-        
         assert self.visible == True
         if self._frames is not None:
             # update position and decrement frame count
@@ -114,12 +115,11 @@ class Card:
                 
                 if self._remove_on_arrival == True:
                     # setting visible to False will cause the game loop to
-                    # drop the card from the list of visible objects on the
-                    # next pass
+                    # drop the card from the list of visible objects after
+                    # the current frame is displayed
                     self.visible = False
                     
-        if self.visible == True:
-            screen.blit(self._image, (int(self._x), int(self._y)))
+        screen.blit(self._image, (int(self._x), int(self._y)))
 
     @staticmethod
     def stars(n):
@@ -165,20 +165,53 @@ class Card:
         x = (CARD_WIDTH - text.get_width()) / 2
         y = 31
         image.blit(text, (x, y))
+
+        # Set medium grey (128, 128, 128), used at the corners of the
+        # card images, to be transparent, then convert the image to
+        # the most appropriate format
+        image.set_colorkey(GREY)
+        image = image.convert()
         
         return image
 
 
-deck = []
+class Deck:
+    """Class defining a deck of Card objects to be used in the game.
+
+    Public attributes:
+        none
+
+    Internal attributes:
+        _deck: list of cards currently in the deck
+        
+    Public methods:
+        draw(): draw and return the top card from the deck
+        shuffle() shuffle the deck
+    """
+
+    def __init__(self):
+        """Create a new, ordered deck."""
+        self._deck = []
+        for n in range(1, 105):
+            self._deck.append(Card(n))
+
+    def draw(self):
+        """Draw the top card from the deck.
+
+        Will raise an IndexError exception if called when the deck is
+        empty.  Shouldn't happen in normal gameplay, when at most 100
+        cards would be drawn for the maximum 10 players.
+        """
+        return self._deck.pop()
+
+
+    def shuffle(self):
+        """Shuffle the deck."""
+        random.shuffle(self._deck)    
+    
+
+# Make the screen global for simplicity...may change later?
 screen = None
-
-
-def random_xy():
-    """Return a random (x, y) position on the screen."""
-    x = random.randint(0, SCREEN_WIDTH - CARD_WIDTH)
-    y = random.randint(0, SCREEN_HEIGHT - CARD_HEIGHT)
-
-    return (x, y)
 
 
 def main():
@@ -188,35 +221,29 @@ def main():
 
 def init():
     """Initial setup before the game starts."""
-    global deck
+    global screen
 
     pygame.init()
-
-    for n in range(1, 105):
-        deck.append(Card(n))
-
+    screen = pygame.display.set_mode((SCREEN_WIDTH, SCREEN_HEIGHT))
+    pygame.display.set_caption("sixn")
 
 
 def game_loop():
     """The main game loop -- almost everything happens here."""
-    global screen
-
-    # Create and set up the display surface
-    screen = pygame.display.set_mode((SCREEN_WIDTH, SCREEN_HEIGHT))
-    pygame.display.set_caption("sixn")
-
     # Create a clock to regulate the frame rate
     clock = pygame.time.Clock()
 
-    # No visible cards, initially
+    # Start out with a full, shuffled deck and no visible cards
+    deck = Deck()
+    deck.shuffle()
     cards = []
     
     running = True
     while running:
-        # Restore the background before drawing any cards
+        # Restore the background
         screen.fill(GREEN)
     
-        # Update and draw the current list of visible cards
+        # Draw all currently visible cards
         for card in cards:
             card.update()
 
@@ -236,16 +263,14 @@ def game_loop():
             if event.type == pygame.QUIT:
                 running = False
             if event.type == pygame.MOUSEBUTTONUP:
-                if deck != []:
-                    new_card = deck.pop()
-                    x, y = random_xy()
-                    new_card.place(x, y)
-                    to_x, to_y = random_xy()
-                    new_card.move_to(to_x, to_y, random.randint(15, 300))
-                    if random.random() >= 0.5:
-                        new_card.remove_on_arrival()
+                try:
+                    new_card = deck.draw()
+                    new_card.place(*random_xy())
+                    new_card.move_to(*random_xy(),
+                                     random.randint(15, 300),
+                                     random.choice((True, False)))
                     cards.append(new_card)
-                else:
+                except IndexError as e:
                     running = False
 
         # Run no faster than FRAMERATE frames per second
@@ -254,6 +279,14 @@ def game_loop():
     pygame.quit()
     exit()
     
+
+def random_xy():
+    """Return a random (x, y) position on the screen."""
+    x = random.randint(0, SCREEN_WIDTH - CARD_WIDTH)
+    y = random.randint(0, SCREEN_HEIGHT - CARD_HEIGHT)
+
+    return (x, y)
+
 
 if __name__ == "__main__":
     main()

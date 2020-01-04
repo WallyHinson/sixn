@@ -204,7 +204,6 @@ class Deck:
         """
         return self._deck.pop()
 
-
     def shuffle(self):
         """Shuffle the deck."""
         random.shuffle(self._deck)    

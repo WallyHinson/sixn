@@ -19,12 +19,13 @@ CARD_HEIGHT = 80
 # Define the needed colors as RGB tuples
 BLACK = (0, 0, 0)
 WHITE = (255, 255, 255)
-GREY = (128, 128, 128)
+#GREY = (128, 128, 128)
 GREEN = (21, 142, 15)
 BLUE = (180, 200, 255)
 YELLOW = (255, 242, 0)
 RED = (255, 0, 0)
 PURPLE = (64, 32, 64)
+COLORKEY = (0, 255, 0)
 
 # Define the maximum framerate
 FRAMERATE = 30
@@ -166,10 +167,9 @@ class Card:
         y = 31
         image.blit(text, (x, y))
 
-        # Set medium grey (128, 128, 128), used at the corners of the
-        # card images, to be transparent, then convert the image to
-        # the most appropriate format
-        image.set_colorkey(GREY)
+        # Set pure green (0, 255, 0) to be transparent, then convert the
+        # image to the most appropriate format
+        image.set_colorkey(COLORKEY)
         image = image.convert()
         
         return image

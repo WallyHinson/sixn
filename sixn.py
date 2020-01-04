@@ -120,24 +120,15 @@ def game_loop():
     # Create a clock to regulate the frame rate
     clock = pygame.time.Clock()
 
-    # Create a card-sized image of the background color, to allow erasing
-    # just a single card
-    card_erase = pygame.Surface((CARD_WIDTH, CARD_HEIGHT))
-    card_erase.fill(GREEN)
-
-    screen.fill(GREEN)
-    pygame.display.update()
     cards = []
     
     running = True
     while running:
-        # Clear list of dirty rectangles
-        dirty = []
+        # Restore the background before drawing any cards
+        screen.fill(GREEN)
+    
         for card in cards:
             if card[CARD_MOVING] == True:
-                # Restore the background at the current card position
-                dirty.append(screen.blit(card_erase,
-                                         (card[CARD_X], card[CARD_Y])))
                 # Update the card's position
                 card[CARD_X] += card[CARD_DX]
                 card[CARD_Y] += card[CARD_DY]
@@ -160,13 +151,11 @@ def game_loop():
                 if card[CARD_DX] == 0 and card[CARD_DY] == 0:
                     card[CARD_MOVING] = False
 
-            # Blit card to screen and append rectangle to list of dirty
-            # areas, so that update() will make the needed update below
-            dirty.append(screen.blit(card[CARD_IMAGE],
-                                 (card[CARD_X], card[CARD_Y])))
+            # Blit card to screen in its new location
+            screen.blit(card[CARD_IMAGE], (card[CARD_X], card[CARD_Y]))
 
-        # Update only the modified areas of the screen    
-        pygame.display.update(dirty)
+        # Show the udpated screen   
+        pygame.display.update()
         
         # Get and process events -- exit on QUIT; spawn a new card on a
         # MOUSEBUTTONUP or exit if the deck is empty

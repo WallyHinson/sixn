@@ -11,6 +11,11 @@ import pygame
 SCREEN_WIDTH = 800
 SCREEN_HEIGHT = 600
 
+# Define the cell width and height that cards and other game objects
+# fit into on the screen
+CELL_WIDTH = int(SCREEN_WIDTH / 12)
+CELL_HEIGHT = int(SCREEN_HEIGHT / 7)
+
 # Define the card size -- these dimensions allow 12 cards (with spacing)
 # across the screen, and 7 cards (with spacing) down the screen at 800x600.
 CARD_WIDTH = 64
@@ -176,7 +181,7 @@ class Card:
 
 
 class Deck:
-    """Class defining a deck of Card objects to be used in the game.
+    """Class defining the deck of cards to be used in the game.
 
     Public attributes:
         none
@@ -185,8 +190,9 @@ class Deck:
         _deck: list of cards currently in the deck
         
     Public methods:
+        __init__(): create a new ordered deck
+        shuffle(): shuffle the deck
         draw(): draw and return the top card from the deck
-        shuffle() shuffle the deck
     """
 
     def __init__(self):
@@ -195,20 +201,111 @@ class Deck:
         for n in range(1, 105):
             self._deck.append(Card(n))
 
+    def shuffle(self):
+        """Shuffle the deck."""
+        random.shuffle(self._deck)
+
     def draw(self):
         """Draw the top card from the deck.
 
         Will raise an IndexError exception if called when the deck is
-        empty.  Shouldn't happen in normal gameplay, when at most 100
-        cards would be drawn for the maximum 10 players.
+        empty.  Shouldn't happen, as the full deck will never be used
+        in normal gameplay.
         """
         return self._deck.pop()
 
-    def shuffle(self):
-        """Shuffle the deck."""
-        random.shuffle(self._deck)    
-    
 
+class Player:
+    """Class defining the players in the game.
+
+    Public attributes:
+        score: the player's score
+        hand: the player's hand (0 - 10 cards)
+        visible: is the player visible on the screen?  (Always True)
+
+    Internal attributes:
+        _x: x position
+        _y: y position
+        _image: player image    
+
+    Public methods:
+        __init__(n): create player number n
+        update(): draw player and score on the screen
+    """
+
+    _images = []
+
+    def __init__(self, n):
+        self.score = 0
+        self.hand = []
+        self.name = "Player {}".format(n)
+        self.visible = True
+
+        self._x = 9 * CELL_WIDTH
+        self._y = n * CELL_HEIGHT - (CELL_HEIGHT // 2)
+        if Player._images == []:
+            Player.get_player_images()
+        self._image = Player._images[n % 3]        
+
+    def update(self):
+        screen.blit(self._image, (self._x, self._y))
+
+    @staticmethod
+    def get_player_images():
+        """Build list of player images."""
+        for i in range(3):
+            filename = os.path.join("images", "face_" + str(i) + ".png")
+            image = pygame.image.load(filename)
+
+            # Set pure green (0, 255, 0) to be transparent, then convert the
+            # image to the most appropriate format
+            image.set_colorkey(COLORKEY)
+            image = image.convert()
+
+            Player._images.append(image)
+
+
+class Game:
+    """Class containing the game state.
+
+    Public attributes:
+        deck: the deck of cards
+        rows: the four rows where cards are placed (up to 5 each)
+        players: the players in the game
+        screen_objects: all visible screen objects
+        click_function: function to call on mouse click,
+            with signature (game, event)
+
+        Public methods:
+        __init__(n): create a game with n players
+        add_screen_object(obj): add a new object to the list of screen objects
+        cleanup_screen_objects(): remove any objects that are no longer visible
+    """
+
+    def __init__(self, n):
+        """Create a game with n players."""
+        assert 2 <= n <= 5
+        self.deck = None
+        self.rows = [[], [], [], []]
+        self.players = []
+        self.screen_objects = []
+        self.click_function = None
+        for i in range(n):
+            player = Player(i + 1)
+            self.players.append(player)
+            self.screen_objects.append(player)
+
+    def add_screen_object(self, obj):
+        """Add obj to the list of screen objects."""
+        self.screen_objects.append(obj)
+
+    def cleanup_screen_objects(self):
+        """Remove any screen objects that are no longer visible."""
+        updated_objects = [obj for obj in self.screen_objects
+                           if obj.visible == True]
+        self.screen_objects = updated_objects
+            
+        
 # Make the screen global for simplicity...may change later?
 screen = None
 
@@ -232,29 +329,33 @@ def game_loop():
     # Create a clock to regulate the frame rate
     clock = pygame.time.Clock()
 
-    # Start out with a full, shuffled deck and no visible cards
-    deck = Deck()
-    deck.shuffle()
-    cards = []
+    # Create a Game object to hold the game state
+    game = Game(3)
+    game.deck = Deck()
+    game.deck.shuffle()
+    game.click_function = spawn_card
+
+    # Place some cards
+    for y in range(1, 5):
+        for x in range(1, 6):
+            card = game.deck.draw()
+            card.place(x * CELL_WIDTH, y * CELL_HEIGHT)
+            game.add_screen_object(card)
     
     running = True
     while running:
         # Restore the background
         screen.fill(GREEN)
     
-        # Draw all currently visible cards
-        for card in cards:
-            card.update()
-
-        # Code to draw other elements (player images, scores, etc)
-        # would go here...
+        # Draw all visible screen objects
+        for obj in game.screen_objects:
+            obj.update()
     
         # Show the udpated screen   
         pygame.display.update()
 
-        # Drop any cards that are no longer visible
-        updated_cards = [card for card in cards if card.visible == True]
-        cards = updated_cards
+        # Drop any objects that are no longer visible
+        game.cleanup_screen_objects()
         
         # Get and process events -- exit on QUIT; spawn a new card on a
         # MOUSEBUTTONUP or exit if the deck is empty
@@ -262,15 +363,8 @@ def game_loop():
             if event.type == pygame.QUIT:
                 running = False
             if event.type == pygame.MOUSEBUTTONUP:
-                try:
-                    new_card = deck.draw()
-                    new_card.place(*random_xy())
-                    new_card.move_to(*random_xy(),
-                                     random.randint(15, 300),
-                                     random.choice((True, False)))
-                    cards.append(new_card)
-                except IndexError as e:
-                    running = False
+                if game.click_function is not None:
+                    game.click_function(game, event)
 
         # Run no faster than FRAMERATE frames per second
         clock.tick(FRAMERATE)
@@ -285,6 +379,16 @@ def random_xy():
     y = random.randint(0, SCREEN_HEIGHT - CARD_HEIGHT)
 
     return (x, y)
+
+
+def spawn_card(game, event):
+    """Spawn a card at the current mouse position, moving somewhere else."""
+    x, y = event.pos
+    card = game.deck.draw()
+    card.place(x, y)
+    card.move_to(*random_xy(), random.randint(5, 150),
+                 random.choice([True, False]))
+    game.add_screen_object(card)                 
 
 
 if __name__ == "__main__":
